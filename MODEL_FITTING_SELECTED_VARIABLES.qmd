@@ -1,0 +1,359 @@
+---
+title: "MODEL_FITTING"
+format: html
+editor: visual
+---
+
+```{r}
+
+library(discrim)
+library(tidymodels)
+library(nnet)  # For multinomial logistic regression
+library(dplyr)
+library(tidyr)  # for handling missing values and data tidying
+library(naivebayes)
+library(caret)
+library(ggplot2)
+
+```
+
+```{r}
+
+# Load the data
+file_path <- "Insurance_complaints__All_data.csv"
+insurance_df <- read.csv(file_path, stringsAsFactors = TRUE)
+
+# Define all categorical columns and ensure they are factors
+categorical_columns <- c("complaint_type", "coverage_type", "complainant_type",
+                         "keywords", "respondent_role", "respondent_type", "coverage_level")
+
+train_indices <- createDataPartition(insurance_df$complaint_type, p = 0.8, list = FALSE)
+
+unique_values <- unique(insurance_df$complaint_type)
+mapping <- setNames(1:length(unique_values), unique_values)
+insurance_df$complaint_type <- mapping[insurance_df$complaint_type]
+
+insurance_df <- insurance_df |>  mutate_all(list(~ trimws(tolower(.))))
+
+insurance_df <- insurance_df |> dplyr::select(complaint_type,coverage_type,complainant_type,keywords,respondent_role,respondent_type,coverage_level)
+
+train_data <- insurance_df[train_indices, ]
+test_data <- insurance_df[-train_indices, ]
+
+ggplot(data = train_data, aes(x = complaint_type)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
+  labs(title = "Distribution of Complaint Types - Train Data") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(data = test_data, aes(x = complaint_type)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
+  labs(title = "Distribution of Complaint Types - Test Data") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+train_data[categorical_columns] <- lapply(train_data[categorical_columns], factor)
+
+test_data[categorical_columns] <- lapply(test_data[categorical_columns], factor)
+
+
+```
+
+```{r}
+
+#Navies Classification 
+
+# Define the Naive Bayes model specification
+naive_spec <- naive_Bayes(smoothness = 1) %>%
+  set_engine("naivebayes") %>%
+  set_mode("classification")
+
+# Create the workflow with the correct response variable
+naive_workflow <- workflow() %>%
+  add_model(naive_spec) %>%
+  add_formula(complaint_type ~ .)
+
+# Fit the Naive Bayes model
+naive_fit <- fit(naive_workflow, data = train_data)
+
+# Predict on test data
+naive_predictions <- predict(naive_fit, new_data = test_data)
+
+# Evaluate model performance
+naive_results <- naive_predictions %>%
+  bind_cols(test_data) %>%
+  metrics(truth = complaint_type, estimate = .pred_class)
+
+# Print the model performance results
+print(naive_results)
+```
+
+```{r}
+
+#Multinomial 
+
+# Create a recipe for preprocessing the data
+# Make sure to exclude the response variable from dummy encoding and other manipulation
+recipe <- recipe(complaint_type ~ ., data = train_data) %>%
+  step_other(all_nominal_predictors(), threshold = 0.02, other = "Other_") %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE)
+
+# Define the multinomial logistic regression model specification
+multinom_spec <- multinom_reg(mode = "classification") %>%
+  set_engine("nnet", MaxNWts = 10000, maxit = 200) %>%
+  set_args(trcontrol = trainControl(method = "cv", number = 10))
+
+# Create the workflow with the recipe and model specification
+multinom_workflow <- workflow() %>%
+  add_recipe(recipe) %>%
+  add_model(multinom_spec)
+
+# Fit the multinomial logistic regression model
+multinom_fit <- fit(multinom_workflow, data = train_data)
+
+# Predict on test data (apply recipe transformations automatically)
+multinom_predictions <- predict(multinom_fit, new_data = test_data)
+
+# Evaluate model performance
+multinom_results <- multinom_predictions %>%
+  bind_cols(test_data) %>%
+  metrics(truth = complaint_type, estimate = .pred_class)
+
+# Print the model performance results
+print(multinom_results)
+```
+
+```{r}
+
+# KNN 
+
+# Create a recipe for preprocessing the data
+recipe <- recipe(complaint_type ~ ., data = train_data) %>%
+  step_other(all_nominal_predictors(), threshold = 0.02, other = "Other_") %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  step_normalize(all_predictors(), -all_nominal())  # Normalize numeric predictors
+
+# Define the KNN model specification
+knn_spec <- nearest_neighbor(neighbors = 5, weight_func = "rectangular", dist_power = 2) %>%
+  set_engine("kknn") %>%
+  set_mode("classification")
+
+# Create the workflow with the recipe and model specification
+knn_workflow <- workflow() %>%
+  add_recipe(recipe) %>%
+  add_model(knn_spec)
+
+# Fit the KNN model
+knn_fit <- fit(knn_workflow, data = train_data)
+
+# Predict on test data (apply recipe transformations automatically)
+knn_predictions <- predict(knn_fit, new_data = test_data)
+
+# Evaluate model performance
+knn_results <- knn_predictions %>%
+  bind_cols(test_data) %>%
+  metrics(truth = complaint_type, estimate = .pred_class)
+
+# Print the model performance results
+print(knn_results)
+```
+
+```{r}
+#RF
+
+# Create a recipe for preprocessing the data
+recipe <- recipe(complaint_type ~ ., data = train_data) %>%
+  step_other(all_nominal_predictors(), threshold = 0.02, other = "Other_") %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE)
+
+# Define the Random Forest model specification
+rf_spec <- rand_forest(trees = 1000, mode = "classification", mtry = 2, min_n = 10) %>%
+  set_engine("ranger") %>%
+  set_mode("classification")
+
+# Create the workflow with the recipe and model specification
+rf_workflow <- workflow() %>%
+  add_recipe(recipe) %>%
+  add_model(rf_spec)
+
+# Fit the Random Forest model
+rf_fit <- fit(rf_workflow, data = train_data)
+
+# Predict on test data (apply recipe transformations automatically)
+rf_predictions <- predict(rf_fit, new_data = test_data)
+
+# Evaluate model performance
+rf_results <- rf_predictions %>%
+  bind_cols(test_data) %>%
+  metrics(truth = complaint_type, estimate = .pred_class)
+
+# Print the model performance results
+print(rf_results)
+```
+
+```{r}
+# Decision tree
+
+# Create a recipe for preprocessing the data
+recipe <- recipe(complaint_type ~ ., data = train_data) %>%
+  step_other(all_nominal_predictors(), threshold = 0.02, other = "Other_") %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE)
+
+# Define the Decision Tree model specification
+decision_tree_spec <- decision_tree(tree_depth = 5, min_n = 10) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+# Create the workflow with the recipe and model specification
+dt_workflow <- workflow() %>%
+  add_recipe(recipe) %>%
+  add_model(decision_tree_spec)
+
+# Fit the Decision Tree model
+dt_fit <- fit(dt_workflow, data = train_data)
+
+# Predict on test data (apply recipe transformations automatically)
+dt_predictions <- predict(dt_fit, new_data = test_data)
+
+# Evaluate model performance
+dt_results <- dt_predictions %>%
+  bind_cols(test_data) %>%
+  metrics(truth = complaint_type, estimate = .pred_class)
+
+# Print the model performance results
+print(dt_results)
+```
+
+```{r}
+
+```
+
+```{r}
+
+# Ensure you bind the predictions with the actual outcomes before evaluating:
+naive_predictions <- predict(naive_fit, new_data = test_data, type = "prob")
+knn_predictions <- predict(knn_fit, new_data = test_data, type = "prob")
+rf_predictions <- predict(rf_fit, new_data = test_data, type = "prob")
+multinom_predictions <- predict(multinom_fit, new_data = test_data, type = "prob")
+dt_predictions <- predict(dt_fit, new_data = test_data, type = "prob")
+
+naive_predictions <- naive_predictions %>%
+  bind_cols(test_data[, "complaint_type", drop = FALSE])
+knn_predictions <- knn_predictions %>%
+  bind_cols(test_data[, "complaint_type", drop = FALSE])
+rf_predictions <- rf_predictions %>%
+  bind_cols(test_data[, "complaint_type", drop = FALSE])
+multinom_predictions <- multinom_predictions %>%
+  bind_cols(test_data[, "complaint_type", drop = FALSE])
+dt_predictions <- dt_predictions %>%
+  bind_cols(test_data[, "complaint_type", drop = FALSE])
+
+# Calculate ROC AUC for multiclass
+naive_roc_auc <- roc_auc(naive_predictions, 
+                         truth = complaint_type, 
+                         ".pred_1", 
+                         ".pred_2", 
+                         ".pred_3", 
+                         ".pred_4")
+
+knn_roc_auc <- roc_auc(knn_predictions, 
+                         truth = complaint_type, 
+                         ".pred_1", 
+                         ".pred_2", 
+                         ".pred_3", 
+                         ".pred_4")
+
+rf_roc_auc <- roc_auc(rf_predictions, 
+                         truth = complaint_type, 
+                         ".pred_1", 
+                         ".pred_2", 
+                         ".pred_3", 
+                         ".pred_4")
+
+multinom_roc_auc <- roc_auc(multinom_predictions, 
+                         truth = complaint_type, 
+                         ".pred_1", 
+                         ".pred_2", 
+                         ".pred_3", 
+                         ".pred_4")
+
+dt_roc_auc <- roc_auc(dt_predictions, 
+                         truth = complaint_type, 
+                         ".pred_1", 
+                         ".pred_2", 
+                         ".pred_3", 
+                         ".pred_4")
+
+# Print the ROC AUC result
+print(naive_roc_auc)
+print(knn_roc_auc)
+print(rf_roc_auc)
+print(multinom_roc_auc)
+print(dt_roc_auc)
+
+```
+
+```{r}
+
+# Data
+Models <- c("Naive Bayes", "KNN", "Random Forest", "Multinomial", "Decision Tree")
+roc_auc <- c(naive_roc_auc$.estimate, knn_roc_auc$.estimate, rf_roc_auc$.estimate,    multinom_roc_auc$.estimate, dt_roc_auc$.estimate)
+print(roc_auc)
+df <- data.frame(models, roc_auc)
+
+ggplot(df, aes(x = Models, y = roc_auc, fill = Models)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = round(roc_auc, 2)), vjust = -0.5, size = 3) +  # Add text labels
+  labs(title = " ROC AUC - Test Data ",
+       x = "Models",
+       y = "ROC AUC") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set1")
+
+```
+
+```         
+```
+
+```{r}
+
+# Validation split
+val_set <- validation_split(train_data, prop = 0.8)
+
+# k-fold cross-validation
+vfold_set <- vfold_cv(train_data, v = 5)
+
+# Monte Carlo cross-validation
+mc_set <- mc_cv(train_data, times = 10, prop = 0.75)
+
+# Bootstrapping
+bootstrap_set <- bootstraps(train_data, times = 10)
+
+# Define workflow names and objects
+workflow_names <- c("naive_workflow", "multinom", "rf", "knn", "decision_tree")
+workflow_objects <- list(naive_workflow, multinom_workflow, rf_workflow, knn_workflow, dt_workflow)
+
+# Create a tibble with workflow names and objects
+workflows_tbl <- tibble(work_names = workflow_names, work_objects = workflow_objects)
+
+# Fit models
+workflows_tbl <- workflows_tbl |>
+  rowwise() |>
+  mutate(fits = list(fit(work_objects, train_data)))
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```

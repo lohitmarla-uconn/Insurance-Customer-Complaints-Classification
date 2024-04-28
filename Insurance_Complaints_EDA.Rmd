@@ -1,0 +1,390 @@
+---
+title: "Insurance_Fraud_Detection"
+output: html_document
+date: "2024-04-06"
+---
+Data source : 
+
+# Predicting Complaint Types in Insurance Companies
+
+Predicting complaint types in insurance companies can provide several benefits and avenues for increasing productivity and efficiency:
+
+1. **Improved Customer Service**: 
+   - By accurately predicting complaint types, insurance companies can proactively address customer issues and concerns. 
+   - This can lead to higher customer satisfaction, improved retention rates, and positive word-of-mouth referrals.
+
+2. **Resource Allocation**: 
+   - Understanding the types and frequency of complaints allows companies to allocate resources more effectively. 
+   - They can prioritize areas that receive the most complaints, ensuring that resources are allocated where they are most needed.
+
+3. **Risk Management**: 
+   - Analyzing complaint types can help identify potential risks and areas of vulnerability within the company's operations. 
+   - By addressing these issues proactively, companies can mitigate risks and avoid costly legal disputes or regulatory penalties.
+
+4. **Product Development**: 
+   - Insights from complaint data can inform product development and innovation. 
+   - By understanding customer pain points and preferences, companies can develop new products or improve existing ones to better meet customer needs.
+
+5. **Process Optimization**: 
+   - Analyzing complaint data can highlight inefficiencies or bottlenecks in internal processes. 
+   - Companies can use this information to streamline workflows, automate repetitive tasks, and improve overall operational efficiency.
+
+6. **Training and Education**: 
+   - Identifying common complaint types can guide training programs for employees. 
+   - Companies can provide targeted training to address specific areas of concern, improving employee competency and performance.
+
+7. **Regulatory Compliance**: 
+   - Compliance with regulatory requirements is essential in the insurance industry. 
+   - Analyzing complaint data can help ensure that companies are meeting regulatory standards and requirements, reducing the risk of non-compliance and associated penalties.
+
+8. **Competitive Advantage**: 
+   - Companies that effectively analyze and respond to complaint data can gain a competitive advantage in the market. 
+   - By providing superior customer service and addressing customer concerns promptly, companies can differentiate themselves from competitors and attract more customers.
+
+```{r}
+
+
+library(dplyr)
+library(ggplot2)
+library(janitor)
+library(parsnip)
+library(tidyverse)
+library(tidymodels)
+library(ranger)
+library(tidyverse)
+library(tidymodels)
+library(ranger)
+library(caret)
+library(randomForest)
+library(MASS)
+library(purrr)
+library(arulesViz)
+library(arules)
+library(ggwordcloud)
+
+```
+
+```{r}
+
+insurance <- read.csv("Insurance_complaints__All_data.csv")
+dim(insurance)
+
+insurance <- insurance |> dplyr::select(-X)
+
+```
+
+
+```{r}
+
+column_counts_df <- data.frame(Column_Name = character(), Unique_Count = numeric(), stringsAsFactors = FALSE)
+
+# Iterate over columns of the original data frame
+for (col in names(insurance)) {
+  # Calculate unique count of values in each column
+  unique_count <- length(unique(insurance[[col]]))
+  # Append column name and unique count to the new data frame
+  column_counts_df <- rbind(column_counts_df, data.frame(Column_Name = col, Unique_Count = unique_count))
+}
+
+# Display the new data frame
+print(column_counts_df)
+
+```
+
+
+```{r}
+
+# Create a vertical bar plot with counts on top
+plot <- ggplot(column_counts_df, aes(x = Column_Name, y = Unique_Count)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  geom_text(aes(label = Unique_Count), vjust = -0.5, color = "black", size = 3) +  # Add counts on top of bars
+  labs(title = "Unique Value Counts by Column",
+       x = "Column Names",
+       y = "Unique Value Counts") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+# Print the plot
+print(plot)
+
+```
+
+
+
+```{r}
+
+# Frequency table for 'Complaint_Type'
+complaint_type_freq <- table(insurance_df$complaint_type)
+print(complaint_type_freq)
+
+```
+
+```{r}
+
+theme_set(theme_bw())
+
+# Bar plot for 'Complaint_Type' with counts displayed on top of each bar
+ggplot(data = insurance_df, aes(x = complaint_type)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
+  labs(title = "Distribution of Complaint Types") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+```{r}
+
+# Bar plot for 'Coverage_Type'
+ggplot(data = insurance_df, aes(x = coverage_type)) +
+  geom_bar(fill = "lightgreen", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +
+  labs(title = "Distribution of Coverage Types") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r}
+
+insurance_df |>
+  group_by(coverage_level)|>
+  summarise(counts = n())|>
+  filter(counts > 1000)|>
+  ggplot(aes(x = coverage_level, y = counts)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  labs(title = "Distribution of Coverage Levels (Counts > 1000)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r}
+
+ggplot(data = insurance, aes(x = complaint_filed_by)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
+  labs(title = "Distribution of Complaint Types") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+
+insurance |>
+  group_by(complaint_filed_by)|>
+  summarise(counts = n())|>
+  filter(counts > 1000)|>
+  ggplot(aes(x = complaint_filed_by, y = counts)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  labs(title = "Distribution of Coverage Levels (Counts > 1000)") +
+  geom_text(aes(label = counts), vjust = -0.3, color = "black", size = 3) + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+
+insurance_df <- insurance
+
+ggplot(data = insurance_df, aes(x = confirmed_complaint)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
+  labs(title = "Distribution of Complaint Types") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+```{r}
+
+# Convert dataframe to transactions
+transactions <- as(insurance_df, "transactions")
+
+# Perform association rule mining
+rules <- apriori(transactions)
+summary(rules)
+# Assuming 'rules' is your association rules object
+inspect(rules)
+
+
+```
+
+
+```{r}
+
+# Set minimum thresholds
+min_support <- 0.10
+min_confidence <- 0.80
+min_lift <- 3.85
+
+# Filter rules based on thresholds
+selected_rules <- rules[quality(rules)$support > min_support &
+                        quality(rules)$confidence > min_confidence &
+                        quality(rules)$lift > min_lift]
+
+head(inspect(selected_rules))
+
+```
+
+```{r}
+
+# Load required packages
+
+# Convert rules to data frame
+rules_df <- as(selected_rules, "data.frame")
+
+# Plot scatter plots for support vs. confidence and support vs. lift
+plot(rules_df, method = "scatterplot")
+
+```
+
+```{r}
+
+plot(selected_rules, method = "graph", control = list(type="items"))
+
+```
+
+```{r}
+
+# Convert your data to transactions
+transactions <- as(insurance_df, "transactions")
+
+# Perform association rule mining
+rules <- apriori(transactions)
+
+# Extract lift values from the rules
+lift_values <- quality(rules)$lift
+
+# Find the indices of the rules with the highest lift values
+top_lift_indices <- order(lift_values, decreasing = TRUE)[1:10]  # Adjust the number as needed
+
+# Extract the top rules based on lift
+top_lift_rules <- rules[top_lift_indices]
+
+# Extract itemsets from the top rules
+top_lift_lhs <- labels(lhs(top_lift_rules))
+top_lift_rhs <- labels(rhs(top_lift_rules))
+
+# Combine lhs and rhs to get all variables involved in the top rules
+all_variables <- c(top_lift_lhs, top_lift_rhs)
+
+# Remove duplicates and sort the variables
+unique_variables <- sort(unique(all_variables))
+
+# Print the list of variables
+print("List of Variables:")
+print(unique_variables)
+
+```
+
+# Feautre Selection
+
+#complaint_type,coverage_type,complainant_type,keywords,respondent_role,respondent_type,coverage_level
+
+
+```{R}
+
+chi_sq_results <- data.frame(variable = character(), p_value = numeric(), stringsAsFactors = FALSE)
+
+predictive_variables <- c(
+  "complaint_filed_against", "complaint_filed_by", 
+  "reason_complaint_filed", "confirmed_complaint", 
+  "how_resolved", "complaint_type", 
+  "coverage_type", "coverage_level", 
+  "others_involved", "respondent_id", 
+  "respondent_role", "respondent_type", "keywords", 
+  "date_difference"
+)
+
+response_variables <- c("complaint_type")
+
+for (var in predictive_variables) {
+  chi_sq <- chisq.test(insurance_df[[var]], insurance_df[[response_variables]])
+  p_value <- chi_sq$p.value
+  chi_sq_results <- rbind(chi_sq_results, data.frame(variable = var, p_value = p_value))
+}
+
+significant_predictors_chi_sq <- chi_sq_results$variable[chi_sq_results$p_value < 0.05]
+significant_predictors_chi_sq
+
+```
+For each predictor variable listed, the p-value of the chi-squared test is calculated. If the p-value is less than 0.05, it indicates that there is evidence to reject the null hypothesis that there is no association between the predictor variable and the response variable. Therefore, these predictor variables are considered significant in predicting the response variable "complaint_type".
+
+
+```{r}
+
+library(tidytext)
+book1_counts <- insurance_df |>
+  summarize(term_frequency = n(),
+            .by = c(keywords)) |>
+  arrange(desc(term_frequency))
+
+book1_counts |>
+  head()
+
+book1_counts |> 
+  group_by(keywords) |>
+  summarize(term_frequency = sum(term_frequency)) |>
+  slice_max(term_frequency, 
+            n = 50) |>
+  ggplot() +
+  geom_text_wordcloud_area(aes(label = keywords, 
+                               size = term_frequency)) +
+  scale_size_area(max_size = 70) 
+
+# eliminating stop words 
+
+data("stop_words")
+
+stop_words <- stop_words |> rename( keywords  = word )
+  
+book1_counts_clean <- book1_counts |> 
+  anti_join(stop_words,
+            by = join_by(keywords))
+
+book1_counts_clean |> 
+  slice_max(term_frequency, 
+            n = 50) |>
+  ggplot() +
+  geom_text_wordcloud_area(aes(label = keywords, 
+                               size = term_frequency)) +
+  scale_size_area(max_size = 70) 
+
+```
+```{r}
+
+ggplot(data = insurance_df, aes(x = complaint_filed_against)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
+  labs(title = "complaint_filed_against") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# Define the recipe
+recipe_ames <- recipe(data = insurance_df, formula = complaint_type ~ .)
+
+# Apply 'step_other' to handle infrequent levels in 'complaint_filed_against'
+recipe_ames <- recipe_ames |>
+  step_other(complaint_filed_against, 
+             threshold = 0.02,    # Threshold to determine infrequent levels
+             other = "Other")    # Label for infrequent levels
+
+# Apply the recipe to the data
+processed_data <- recipe_ames %>%
+  prep() %>%
+  bake(new_data = insurance_df)
+
+# Create a bar plot to visualize the distribution of 'complaint_filed_against'
+ggplot(processed_data, aes(x = complaint_filed_against)) +
+  geom_bar() +
+  labs(title = "Distribution of complaint_filed_against",
+       x = "Complaint Filed Against",
+       y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+```

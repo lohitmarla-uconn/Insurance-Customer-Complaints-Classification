@@ -1,0 +1,234 @@
+---
+title: "Stats_trial"
+format: html
+editor: visual
+---
+
+
+```{r}
+
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(janitor)
+library(parsnip)
+library(tidyverse)
+library(tidymodels)
+library(ranger)
+library(caret)
+library(randomForest)
+library(MASS)
+library(purrr)
+library(arulesViz)
+library(arules)
+library(readr)
+library(tidyr)
+library(lubridate)
+library(stringr)
+
+```
+
+
+```{r}
+
+df <- read_csv('Insurance_All_Complaints_Messy_Final.csv')
+
+```
+
+```{r}
+# Print the number of rows and columns
+cat('Number of rows:', nrow(df), '\n')
+cat('Number of columns:', ncol(df), '\n')
+```
+
+```{r}
+# Clean column names: remove extra spaces, convert to lower case, replace spaces and non-alphanumeric characters with underscores
+df <- df %>%
+  rename_with(~ gsub(" ", "_", .)) %>%
+  rename_with(~ tolower(.)) %>%
+  rename_with(~ gsub("[^[:alnum:]_]", "_", .))
+
+```
+
+```{r}
+
+# Print cleaned column names
+print(names(df))
+
+
+# Filtering the selected complaints types
+values <- c("Teacher Retirement System", "Workers Compensation Network", "Independent Review Org", "Portal")
+
+# Filter the DataFrame based on trimmed 'complaint_type' matching any value in 'values'
+df <- df %>%
+  filter(str_trim(complaint_type) %in% values)
+
+# Print the number of rows and columns
+cat('Number of rows:', nrow(df), '\n')
+cat('Number of columns:', ncol(df), '\n')
+
+```
+
+```{r}
+
+cat('Number of rows:', nrow(df), '\n')
+cat('Number of columns:', ncol(df), '\n')
+
+```
+
+```{r}
+
+#exploding the 
+# Replace '&' with 'and' in the 'complaint_filed_against' column
+df <- df %>%
+  mutate(complaint_filed_against_explode = gsub("&", "and", complaint_filed_against, fixed = TRUE))
+
+# Split the 'complaint_filed_against_explode' column by ',' into a list in a new column
+df <- df %>%
+  mutate(complaint_filed_against = strsplit(complaint_filed_against_explode, ","))
+
+# Explode the 'complaint_filed_against' column
+df <- df %>%
+  unnest(complaint_filed_against)
+
+# Print the modified data frame to verify changes
+print(df)
+
+```
+
+
+```{r}
+
+df <- df %>%
+  mutate(how_resolved = strsplit(as.character(how_resolved), ";"),
+         others_involved = strsplit(as.character(others_involved), ";"),
+         reason_complaint_filed = strsplit(as.character(reason_complaint_filed), ";"),
+         keywords = strsplit(as.character(keywords), ";"),
+         complaint_filed_against = strsplit(as.character(complaint_filed_against), ";") ) %>%
+  unnest(how_resolved) %>%
+  unnest(others_involved) %>%
+  unnest(reason_complaint_filed) %>%
+  unnest(keywords) %>%
+  unnest(complaint_filed_against)
+
+# Print the number of rows and columns
+cat('Number of rows:', nrow(df), '\n')
+cat('Number of columns:', ncol(df), '\n')
+
+```
+
+```{r}
+
+unique_keywords <- df %>%
+  mutate(keywords = str_trim(keywords)) %>%
+  pull(keywords) %>%
+  unique()
+
+# Print the unique keywords
+print(unique_keywords)
+
+```
+
+```{r}
+
+columns_to_transform <- c("coverage_type", "complaint_type", "coverage_level")
+
+# Apply transformation using lapply
+df[columns_to_transform] <- lapply(df[columns_to_transform], function(x) {
+  str_replace_all(x, "&", "and") %>%        # Replace '&' with 'and'
+  str_replace_all("[^\\w\\s]", "")          # Remove all non-word and non-space characters
+})
+
+# Print a summary or view the DataFrame to verify changes
+print(head(df))
+
+```
+
+```{r}
+
+# Get unique values in the 'coverage_type' column
+unique_coverage_type <- unique(df$coverage_type)
+
+# Print the unique values
+print(unique_coverage_type)
+
+```
+
+
+
+```{r}
+
+count_empty_strings <- function(column) {
+  sum(is.na(column))
+}
+
+empty_string_counts <- map_int(df, count_empty_strings)
+
+print(empty_string_counts)
+
+
+impute_mode <- function(column) {
+  # Calculate the mode value, excluding empty strings
+  mode_value <- names(sort(table(column[column != ""]), decreasing = TRUE))[1]
+  # Replace empty strings with the mode value
+  column[is.na(column)] <- mode_value
+  return(column)
+}
+
+empty_strings_vector <- as.vector(names(which(empty_string_counts > 0)))
+empty_strings_vector
+
+df$others_involved <- impute_mode(df$others_involved)
+df$how_resolved <- impute_mode(df$how_resolved)
+df$keywords <- impute_mode(df$keywords)
+
+empty_string_counts <- map_int(df, count_empty_strings)
+
+print(empty_string_counts)
+
+```
+
+
+```{r}
+
+library(dplyr)
+library(lubridate)
+
+# Assuming your data frame is named df and the date column is named received_date
+df$received_date <- gsub("-", "/", df$received_date)  # Replace "-" with "/"
+df$received_date <- gsub("\\.", "/", df$received_date)  # Replace "." with "/"
+df$received_date <- gsub("\\?", "/", df$received_date)  # Replace "?" with "/"
+
+# Convert to date object
+df$received_date <- mdy(df$received_date)
+
+# Assuming your data frame is named df and the date column is named received_date
+df$closed_date <- gsub("-", "/", df$closed_date)  # Replace "-" with "/"
+df$closed_date <- gsub("\\.", "/", df$closed_date)  # Replace "." with "/"
+df$closed_date <- gsub("\\?", "/", df$closed_date)  # Replace "?" with "/"
+
+# Convert to date object
+df$closed_date <- mdy(df$closed_date)
+
+df <- df |> mutate( date_difference = as.integer(closed_date - received_date))
+
+```
+
+```{r}
+
+df <- df |> rename( index = "___1")
+df <- df |> dplyr::select(  -index, -complaint_number, -complaint_filed_against_explode, -received_date, -closed_date )
+
+df <- df %>%
+  mutate_all(trimws)
+
+# Check the first few rows of the modified dataframe
+head(df)
+
+```
+
+```{r}
+
+write.csv(df, "Insurance_complaints__All_data.csv", row.name = TRUE)
+
+```
