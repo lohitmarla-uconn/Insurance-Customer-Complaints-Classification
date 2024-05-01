@@ -1,9 +1,9 @@
 ---
-title: "Insurance_Fraud_Detection"
+title: "Optimizing Insurance Complaint Classification Exploratory Data Analysis"
 output: html_document
 date: "2024-04-06"
 ---
-Data source : 
+
 
 # Predicting Complaint Types in Insurance Companies
 
@@ -112,6 +112,8 @@ print(plot)
 
 ```{r}
 
+insurance_df <- insurance
+
 # Frequency table for 'Complaint_Type'
 complaint_type_freq <- table(insurance_df$complaint_type)
 print(complaint_type_freq)
@@ -208,9 +210,6 @@ transactions <- as(insurance_df, "transactions")
 # Perform association rule mining
 rules <- apriori(transactions)
 summary(rules)
-# Assuming 'rules' is your association rules object
-inspect(rules)
-
 
 ```
 
@@ -227,7 +226,6 @@ selected_rules <- rules[quality(rules)$support > min_support &
                         quality(rules)$confidence > min_confidence &
                         quality(rules)$lift > min_lift]
 
-head(inspect(selected_rules))
 
 ```
 

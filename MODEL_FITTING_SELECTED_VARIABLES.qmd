@@ -1,5 +1,5 @@
 ---
-title: "MODEL_FITTING"
+title: "Optimizing-Insurance-Complaint-Classification - Select Variables"
 format: html
 editor: visual
 ---
@@ -228,10 +228,6 @@ print(dt_results)
 
 ```{r}
 
-```
-
-```{r}
-
 # Ensure you bind the predictions with the actual outcomes before evaluating:
 naive_predictions <- predict(naive_fit, new_data = test_data, type = "prob")
 knn_predictions <- predict(knn_fit, new_data = test_data, type = "prob")
@@ -301,7 +297,7 @@ print(dt_roc_auc)
 Models <- c("Naive Bayes", "KNN", "Random Forest", "Multinomial", "Decision Tree")
 roc_auc <- c(naive_roc_auc$.estimate, knn_roc_auc$.estimate, rf_roc_auc$.estimate,    multinom_roc_auc$.estimate, dt_roc_auc$.estimate)
 print(roc_auc)
-df <- data.frame(models, roc_auc)
+df <- data.frame(Models, roc_auc)
 
 ggplot(df, aes(x = Models, y = roc_auc, fill = Models)) +
   geom_bar(stat = "identity") +
@@ -312,48 +308,5 @@ ggplot(df, aes(x = Models, y = roc_auc, fill = Models)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_brewer(palette = "Set1")
-
-```
-
-```         
-```
-
-```{r}
-
-# Validation split
-val_set <- validation_split(train_data, prop = 0.8)
-
-# k-fold cross-validation
-vfold_set <- vfold_cv(train_data, v = 5)
-
-# Monte Carlo cross-validation
-mc_set <- mc_cv(train_data, times = 10, prop = 0.75)
-
-# Bootstrapping
-bootstrap_set <- bootstraps(train_data, times = 10)
-
-# Define workflow names and objects
-workflow_names <- c("naive_workflow", "multinom", "rf", "knn", "decision_tree")
-workflow_objects <- list(naive_workflow, multinom_workflow, rf_workflow, knn_workflow, dt_workflow)
-
-# Create a tibble with workflow names and objects
-workflows_tbl <- tibble(work_names = workflow_names, work_objects = workflow_objects)
-
-# Fit models
-workflows_tbl <- workflows_tbl |>
-  rowwise() |>
-  mutate(fits = list(fit(work_objects, train_data)))
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
 
 ```

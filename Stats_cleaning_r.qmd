@@ -1,9 +1,8 @@
 ---
-title: "Stats_trial"
+title: "Optimizing Insurance Complaint Classification - Data Cleaning"
 format: html
 editor: visual
 ---
-
 
 ```{r}
 
@@ -27,7 +26,6 @@ library(lubridate)
 library(stringr)
 
 ```
-
 
 ```{r}
 
@@ -96,7 +94,6 @@ print(df)
 
 ```
 
-
 ```{r}
 
 df <- df %>%
@@ -154,8 +151,6 @@ print(unique_coverage_type)
 
 ```
 
-
-
 ```{r}
 
 count_empty_strings <- function(column) {
@@ -187,7 +182,6 @@ empty_string_counts <- map_int(df, count_empty_strings)
 print(empty_string_counts)
 
 ```
-
 
 ```{r}
 
