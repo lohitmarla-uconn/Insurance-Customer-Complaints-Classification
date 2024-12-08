@@ -29,7 +29,7 @@ library(stringr)
 
 ```{r}
 
-df <- read_csv('Insurance_All_Complaints_Messy_Final.csv')
+df <- read_csv('data/Insurance_All_Complaints_Messy_Final.csv')
 
 ```
 

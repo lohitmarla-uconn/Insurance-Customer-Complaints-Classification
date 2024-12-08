@@ -43,7 +43,7 @@ Predicting complaint types in insurance companies can provide several benefits a
 
 ```{r}
 
-insurance <- read.csv("Insurance_complaints__All_data.csv")
+insurance <- read.csv("data/Insurance_complaints__All_data.csv")
 
 dim(insurance)
 

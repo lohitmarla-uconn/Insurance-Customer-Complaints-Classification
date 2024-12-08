@@ -1,5 +1,5 @@
 ---
-title: "Optimizing-Insurance-Complaint-Classification - Select Variables"
+title: "Optimizing Insurance Complaint Classification - All Variables"
 format: html
 editor: visual
 ---
@@ -12,7 +12,6 @@ library(nnet)  # For multinomial logistic regression
 library(dplyr)
 library(tidyr)  # for handling missing values and data tidying
 library(naivebayes)
-library(caret)
 library(ggplot2)
 
 ```
@@ -20,44 +19,21 @@ library(ggplot2)
 ```{r}
 
 # Load the data
-file_path <- "Insurance_complaints__All_data.csv"
+file_path <- "data/Insurance_complaints__All_data.csv"
 insurance_df <- read.csv(file_path, stringsAsFactors = TRUE)
 
 # Define all categorical columns and ensure they are factors
-categorical_columns <- c("complaint_type", "coverage_type", "complainant_type",
-                         "keywords", "respondent_role", "respondent_type", "coverage_level")
+categorical_columns <- c("complaint_filed_against", "complaint_filed_by", "reason_complaint_filed",
+                         "confirmed_complaint", "how_resolved", "complaint_type", "coverage_type",
+                         "coverage_level", "respondent_role", "respondent_type", "complainant_type", "keywords")
 
-train_indices <- createDataPartition(insurance_df$complaint_type, p = 0.8, list = FALSE)
+insurance_df[categorical_columns] <- lapply(insurance_df[categorical_columns], factor)
 
-unique_values <- unique(insurance_df$complaint_type)
-mapping <- setNames(1:length(unique_values), unique_values)
-insurance_df$complaint_type <- mapping[insurance_df$complaint_type]
-
-insurance_df <- insurance_df |>  mutate_all(list(~ trimws(tolower(.))))
-
-insurance_df <- insurance_df |> dplyr::select(complaint_type,coverage_type,complainant_type,keywords,respondent_role,respondent_type,coverage_level)
-
-train_data <- insurance_df[train_indices, ]
-test_data <- insurance_df[-train_indices, ]
-
-ggplot(data = train_data, aes(x = complaint_type)) +
-  geom_bar(fill = "skyblue", color = "black") +
-  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
-  labs(title = "Distribution of Complaint Types - Train Data") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-ggplot(data = test_data, aes(x = complaint_type)) +
-  geom_bar(fill = "skyblue", color = "black") +
-  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.2) +  # Add counts on top of each bar
-  labs(title = "Distribution of Complaint Types - Test Data") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-train_data[categorical_columns] <- lapply(train_data[categorical_columns], factor)
-
-test_data[categorical_columns] <- lapply(test_data[categorical_columns], factor)
-
+# Split the data into training and testing sets before any further manipulation
+set.seed(123)
+data_split <- initial_split(insurance_df, prop = 0.80)
+train_data <- training(data_split)
+test_data <- testing(data_split)
 
 ```
 
@@ -228,6 +204,10 @@ print(dt_results)
 
 ```{r}
 
+```
+
+```{r}
+
 # Ensure you bind the predictions with the actual outcomes before evaluating:
 naive_predictions <- predict(naive_fit, new_data = test_data, type = "prob")
 knn_predictions <- predict(knn_fit, new_data = test_data, type = "prob")
@@ -249,38 +229,38 @@ dt_predictions <- dt_predictions %>%
 # Calculate ROC AUC for multiclass
 naive_roc_auc <- roc_auc(naive_predictions, 
                          truth = complaint_type, 
-                         ".pred_1", 
-                         ".pred_2", 
-                         ".pred_3", 
-                         ".pred_4")
+                         ".pred_Independent Review Org", 
+                         ".pred_Portal", 
+                         ".pred_Teacher Retirement System", 
+                         ".pred_Workers Compensation Network")
 
 knn_roc_auc <- roc_auc(knn_predictions, 
                          truth = complaint_type, 
-                         ".pred_1", 
-                         ".pred_2", 
-                         ".pred_3", 
-                         ".pred_4")
+                         ".pred_Independent Review Org", 
+                         ".pred_Portal", 
+                         ".pred_Teacher Retirement System", 
+                         ".pred_Workers Compensation Network")
 
 rf_roc_auc <- roc_auc(rf_predictions, 
                          truth = complaint_type, 
-                         ".pred_1", 
-                         ".pred_2", 
-                         ".pred_3", 
-                         ".pred_4")
+                         ".pred_Independent Review Org", 
+                         ".pred_Portal", 
+                         ".pred_Teacher Retirement System", 
+                         ".pred_Workers Compensation Network")
 
 multinom_roc_auc <- roc_auc(multinom_predictions, 
                          truth = complaint_type, 
-                         ".pred_1", 
-                         ".pred_2", 
-                         ".pred_3", 
-                         ".pred_4")
+                         ".pred_Independent Review Org", 
+                         ".pred_Portal", 
+                         ".pred_Teacher Retirement System", 
+                         ".pred_Workers Compensation Network")
 
 dt_roc_auc <- roc_auc(dt_predictions, 
                          truth = complaint_type, 
-                         ".pred_1", 
-                         ".pred_2", 
-                         ".pred_3", 
-                         ".pred_4")
+                         ".pred_Independent Review Org", 
+                         ".pred_Portal", 
+                         ".pred_Teacher Retirement System", 
+                         ".pred_Workers Compensation Network")
 
 # Print the ROC AUC result
 print(naive_roc_auc)
@@ -288,10 +268,6 @@ print(knn_roc_auc)
 print(rf_roc_auc)
 print(multinom_roc_auc)
 print(dt_roc_auc)
-
-```
-
-```{r}
 
 # Data
 Models <- c("Naive Bayes", "KNN", "Random Forest", "Multinomial", "Decision Tree")
@@ -308,5 +284,172 @@ ggplot(df, aes(x = Models, y = roc_auc, fill = Models)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_brewer(palette = "Set1")
+
+
+```
+
+```{r}
+
+# Define all categorical columns and ensure they are factors
+categorical_columns <- c("complaint_filed_against", "complaint_filed_by", "reason_complaint_filed",
+                         "confirmed_complaint", "how_resolved", "coverage_type",
+                         "coverage_level", "respondent_role", "respondent_type", "complainant_type", "keywords")
+
+insurance_df[categorical_columns] <- lapply(insurance_df[categorical_columns], factor)
+
+# Convert the outcome variable to a factor
+insurance_df$outcome_variable <- as.factor(insurance_df$complainant_type)
+
+# Split the data
+set.seed(123)
+split <- initial_split(insurance_df, prop = 0.7)
+train_data <- training(split)
+test_data <- testing(split)
+
+# Validation split
+val_set <- validation_split(train_data, prop = 0.8)
+
+# k-fold cross-validation
+vfold_set <- vfold_cv(train_data, v = 5)
+
+# Monte Carlo cross-validation
+mc_set <- mc_cv(train_data, times = 10, prop = 0.75)
+
+# Bootstrapping
+bootstrap_set <- bootstraps(train_data, times = 10)
+
+# Define workflow names and objects
+workflow_names <- c("naive_workflow", "multinom", "rf", "knn", "decision_tree")
+workflow_objects <- list(naive_workflow, multinom_workflow, rf_workflow, knn_workflow, dt_workflow)
+
+# Create a tibble with workflow names and objects
+workflows_tbl <- tibble(work_names = workflow_names, work_objects = workflow_objects)
+
+# Fit models
+workflows_tbl <- workflows_tbl |>
+  rowwise() |>
+  mutate(fits = list(fit(work_objects, train_data)))
+
+# Define delay metric set
+set.seed(1)
+delay_metric_set <- metric_set(yardstick::roc_auc)
+
+# Fit resamples for validation set
+workflows_val <- workflows_tbl |>
+  mutate(fits = list(fit_resamples(work_objects, val_set, metrics = delay_metric_set))) |>
+  mutate(metrics = list(collect_metrics(fits)))
+
+# Display validation results
+workflows_val |>
+  select(c(work_names, metrics)) |> 
+  unnest(metrics) |>
+  arrange(desc(mean))
+
+# Fit resamples for vfold set
+workflows_val_vfold <- workflows_tbl |>
+  mutate(fits = list(fit_resamples(work_objects, vfold_set, metrics = delay_metric_set))) |>
+  mutate(metrics = list(collect_metrics(fits)))
+
+# Display vfold validation results
+workflows_val_vfold |>
+  select(c(work_names, metrics)) |>
+  unnest(metrics) |>
+  arrange(desc(mean))
+
+# Fit resamples for Monte Carlo set
+workflows_val_mc <- workflows_tbl |>
+  mutate(fits = list(fit_resamples(work_objects, mc_set, metrics = delay_metric_set))) |>
+  mutate(metrics = list(collect_metrics(fits)))
+
+# Display Monte Carlo validation results
+workflows_val_mc |>
+  select(c(work_names, metrics)) |>
+  unnest(metrics) |>
+  arrange(desc(mean))
+
+# Fit resamples for bootstrap set
+workflows_val_bootstrap <- workflows_tbl |>
+  mutate(fits = list(fit_resamples(work_objects, bootstrap_set, metrics = delay_metric_set))) |>
+  mutate(metrics = list(collect_metrics(fits)))
+
+# Display bootstrap validation results
+workflows_val_bootstrap |>
+  select(c(work_names, metrics)) |>
+  unnest(metrics) |>
+  arrange(desc(mean))
+
+
+```
+
+```{r}
+
+workflows_resub <- workflows_tbl |>
+  mutate(predictions = list(predict(fits, train_data, type = "class")))
+
+predictions_resub <- workflows_resub |>
+  select(work_names, predictions) |>
+  unnest(cols = c(predictions)) |>
+  cbind(complaint_type_truth = train_data$complaint_type)
+
+resub_performance <- predictions_resub |>
+  group_by(work_names) |>
+  accuracy(truth = complaint_type_truth, estimate = .pred_class) |>
+  arrange(work_names)
+
+class_metric_results <- resub_performance |>
+  select(work_names) |>
+  mutate(estimate_resub = resub_performance) |> 
+  pull(estimate_resub)
+
+comparison <- resub_performance |>
+select(work_names) |>
+mutate(estimate_resub = resub_performance |> pull(.estimate))
+
+comparison <- comparison |>
+  mutate(estimate_validation = workflows_val |>
+           select(c(work_names, metrics)) |>
+           unnest(metrics) |>
+           arrange(.metric) |> 
+           pull(mean))
+
+comparison <- comparison |>
+  mutate(estimate_validation_vfold = workflows_val_vfold |>
+           select(c(work_names, metrics)) |>
+           unnest(metrics) |>
+           arrange(.metric) |> 
+           pull(mean))
+
+comparison <- comparison |>
+  mutate(estimate_validation_mc = workflows_val_mc |>
+           select(c(work_names, metrics)) |>
+           unnest(metrics) |>
+           arrange(.metric) |> 
+           pull(mean))
+
+comparison <- comparison |>
+  mutate(estimate_validation_bootsrap = workflows_val_bootstrap |>
+           select(c(work_names, metrics)) |>
+           unnest(metrics) |>
+           arrange(.metric) |> 
+           pull(mean))
+
+comparison |>
+  pivot_longer(!work_names, names_prefix = "estimate_") |>
+  mutate(name = case_when(
+    name == "validation_vfold" ~ "vfold",
+    name == "validation_mc" ~ "MC",
+    name == "validation_bootsrap" ~ "bootstrap",
+    TRUE ~ name
+  )) |> 
+  ggplot(aes(x = work_names, y = value, fill = name)) +
+  geom_col(position = position_dodge()) +
+  labs(y = "Performance estimate", x = "Workflow") +
+  coord_flip() +
+  theme(legend.position = "top")
+
+
+```
+
+```{r}
 
 ```
